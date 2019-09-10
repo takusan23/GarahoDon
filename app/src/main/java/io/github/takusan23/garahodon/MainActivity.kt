@@ -1,12 +1,19 @@
 package io.github.takusan23.garahodon
 
+import android.content.DialogInterface
 import android.content.Intent
 import android.content.SharedPreferences
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuItem
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.view.menu.MenuBuilder
 import androidx.preference.PreferenceManager
 import kotlinx.android.synthetic.main.activity_main.*
+import kotlinx.android.synthetic.main.dialog_toot_layout.view.*
 import okhttp3.*
 import org.json.JSONArray
 import java.io.IOException
@@ -21,6 +28,10 @@ class MainActivity : AppCompatActivity() {
     var token = "";
     var instance = "";
 
+    var fragmentTimeLineName = "home"
+
+    lateinit var timelineListViewAdapter: TimeLineFragmentPagerAdapter
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -30,65 +41,119 @@ class MainActivity : AppCompatActivity() {
         token = pref_setting.getString("token", "") ?: ""
         instance = pref_setting.getString("instance", "") ?: ""
 
-        //しょきか
-        timeLineListViewAdapter =
-            TimeLineListViewAdapter(this, R.layout.adapter_listview_layout, listItem)
-        mainactivity_listview.adapter = timeLineListViewAdapter
-
         if (token.isEmpty()) {
             //ログイン画面
-            var intent = Intent(this, LoginActivity::class.java)
+            val intent = Intent(this, LoginActivity::class.java)
             startActivity(intent)
         } else {
-            //タイムライン取得
-
+            //ViewPagerせってい
+            timelineListViewAdapter = TimeLineFragmentPagerAdapter(supportFragmentManager)
+            mainactivity_viewpager.adapter = timelineListViewAdapter
+            //TabLayoutとつなげる
+            mainactivity_tablayout.setupWithViewPager(mainactivity_viewpager)
         }
+
+
     }
 
-    fun loadHomeTimeLine(url: String) {
-        val url = "https://${instance}/api/v1/timelines/${url}?limit=40&access_token=${token}"
-        val request = Request.Builder().url(url).get().build()
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.activity_menu, menu)
+        if (menu is MenuBuilder) {
+            menu.setOptionalIconsVisible(true)
+        }
+
+        menu?.getItem(3)?.isChecked = pref_setting.getBoolean("hide_image", false)
+
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        when (item.itemId) {
+            R.id.mainactivity_menu_toot -> {
+                //投稿
+                showTootDialog()
+            }
+            R.id.mainactivity_menu_streaming -> {
+                println("あ")
+                val fragment =
+                    supportFragmentManager.findFragmentByTag("android:switcher:" + mainactivity_viewpager.id + ":" + mainactivity_viewpager.currentItem)
+                if (fragment is TimeLineFragment) {
+                    println("きた")
+                    fragment.setStreaming(fragmentTimeLineName)
+                } else {
+                    println("しっぱい")
+                }
+            }
+            R.id.mainactivity_menu_refresh -> {
+                //更新
+                val fragment =
+                    supportFragmentManager.findFragmentByTag("android:switcher:" + mainactivity_viewpager.id + ":" + mainactivity_viewpager.currentItem)
+                if (fragment is TimeLineFragment) {
+                    fragment.refreshTL()
+                }
+            }
+            R.id.mainactivity_menu_hide_image -> {
+                //画像非表示
+                val editor = pref_setting.edit()
+                if (item.isChecked == false) {
+                    item.isChecked = true
+                    editor.putBoolean("hide_image", true)
+                    editor.apply()
+                } else {
+                    item.isChecked = false
+                    editor.putBoolean("hide_image", false)
+                    editor.apply()
+                }
+            }
+        }
+        return super.onOptionsItemSelected(item)
+    }
+
+    fun showTootDialog() {
+        println("おした")
+        val layoutInflater = LayoutInflater.from(this)
+        val dialogView = layoutInflater.inflate(R.layout.dialog_toot_layout, null);
+        AlertDialog.Builder(this)
+            .setTitle("投稿")
+            .setView(dialogView)
+            .setPositiveButton("投稿", DialogInterface.OnClickListener { dialogInterface, i ->
+                //投稿ボタン押した
+                postStatus(dialogView.dialog_toot_edittext.text.toString())
+            })
+            .setNegativeButton("キャンセル", DialogInterface.OnClickListener { dialogInterface, i ->
+                //キャンセル
+
+            }).create().show()
+    }
+
+    fun postStatus(status: String) {
+        //投稿する
+        val url = "https://${instance}/api/v1/statuses"
+        val formBody = FormBody.Builder().add("access_token", token).add("status", status).build()
+        val request = Request.Builder().url(url).post(formBody).build()
         val okHttpClient = OkHttpClient()
         okHttpClient.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
+                //成功した
                 runOnUiThread {
-                    errorToast()
+                    Toast.makeText(this@MainActivity, "問題が発生しました。", Toast.LENGTH_SHORT).show()
                 }
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (response.isSuccessful) {
-                    val jsonArray = JSONArray(response.body()?.string())
-                    for(i in 0 until jsonArray.length()){
-                        val jsonObject = jsonArray.getJSONObject(i);
-                        val jsonAccountObject = jsonObject.getJSONObject("account");
-                        var toot = jsonObject.getString("content")
-                        var usernme = jsonAccountObject.getString("username")
-                        var displayName = jsonAccountObject.getString("display_name")
-                        var tootID = jsonObject.getString("id")
-                        var avatar = jsonAccountObject.getString("avatar_static")
-
-                        //配列に入れる
-                        var list = arrayListOf<String>()
-                        list.add("")
-                        list.add(toot)
-                        list.add(usernme)
-                        list.add(displayName)
-                        list.add(tootID)
-                            list.add(avatar)
-                        listItem.add(list);
-                        timeLineListViewAdapter.notifyDataSetChanged()
+                    //成功した
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, "投稿しました。", Toast.LENGTH_SHORT).show()
                     }
                 } else {
-                    errorToast()
+                    //成功した
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, "問題が発生しました。", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         })
     }
-
-    fun errorToast() {
-        Toast.makeText(this, "読み込みに失敗しました", Toast.LENGTH_SHORT).show()
-    }
-
 
 }
