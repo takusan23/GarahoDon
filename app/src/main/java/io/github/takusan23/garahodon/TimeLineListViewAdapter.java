@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -72,7 +73,7 @@ public class TimeLineListViewAdapter extends ArrayAdapter<ArrayList<String>> {
         //画像非表示？
         if (pref_setting.getBoolean("hide_image", false)) {
             //非表示
-            avatarImageView.setVisibility(View.GONE);
+            ((LinearLayout)avatarImageView.getParent()).removeView(avatarImageView);
         } else {
             //表示
             Glide.with(avatarImageView)
@@ -80,7 +81,6 @@ public class TimeLineListViewAdapter extends ArrayAdapter<ArrayList<String>> {
                     .apply(RequestOptions.bitmapTransform(new RoundedCorners(30))) //←この一行追加
                     .into(avatarImageView);
         }
-
 
         return view;
     }

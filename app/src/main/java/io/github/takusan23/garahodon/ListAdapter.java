@@ -1,7 +1,9 @@
 package io.github.takusan23.garahodon;
 
+import androidx.appcompat.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -12,6 +14,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.core.text.HtmlCompat;
+import androidx.preference.PreferenceManager;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
@@ -25,6 +28,8 @@ public class ListAdapter extends ArrayAdapter<ListItem> {
     private int mResource;
     private ArrayList<ListItem> mItems;
     private LayoutInflater mInflater;
+
+    private SharedPreferences pref_setting;
 
     private ArrayList<String> listItem;
 
@@ -59,15 +64,27 @@ public class ListAdapter extends ArrayAdapter<ListItem> {
         TextView contentTextView = view.findViewById(R.id.adapter_listview_content_textview);
         ImageView avatarImageView = view.findViewById(R.id.adapter_listview_avatar_imageview);
 
+        Context context = accountTextView.getContext();
+
+        pref_setting = PreferenceManager.getDefaultSharedPreferences(context);
+
+
         //値設定
         accountTextView.setText(displayName + "@" + name + "  " + type);
         contentTextView.setText(HtmlCompat.fromHtml(toot, HtmlCompat.FROM_HTML_MODE_COMPACT));
 
         //アイコン
-        Glide.with(avatarImageView)
-                .load(avatar)
-                .apply(RequestOptions.bitmapTransform(new RoundedCorners(30))) //←この一行追加
-                .into(avatarImageView);
+        //画像非表示？
+        if (pref_setting.getBoolean("hide_image", false)) {
+            //非表示
+            ((LinearLayout)avatarImageView.getParent()).removeView(avatarImageView);
+        } else {
+            //表示
+            Glide.with(avatarImageView)
+                    .load(avatar)
+                    .apply(RequestOptions.bitmapTransform(new RoundedCorners(30))) //←この一行追加
+                    .into(avatarImageView);
+        }
 
         return view;
     }

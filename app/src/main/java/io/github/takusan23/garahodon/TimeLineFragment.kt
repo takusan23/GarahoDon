@@ -1,5 +1,7 @@
 package io.github.takusan23.garahodon
 
+import androidx.appcompat.app.AlertDialog
+import android.content.DialogInterface
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -69,7 +71,31 @@ class TimeLineFragment : Fragment() {
         val url = arguments?.getString("url") ?: "home"
         mainActivity.fragmentTimeLineName = url
 
-
+        //ListView押したときふぁぼれるようにする
+        fragment_listview.setOnItemClickListener { adapterView, view, i, l ->
+            val list = adapterView.getItemAtPosition(i) as ListItem
+            val id = list.list.get(4)
+            val type = list.list.get(0)
+            if(type=="timeline") {
+                //通知は押せないように
+                AlertDialog.Builder(context as MainActivity).setTitle("Fav/BT")
+                    .setPositiveButton(
+                        "お気に入り",
+                        DialogInterface.OnClickListener { dialogInterface, i ->
+                            postStatus(id, "favourite", "お気に入りしました。")
+                        })
+                    .setNegativeButton(
+                        "ブースト",
+                        DialogInterface.OnClickListener { dialogInterface, i ->
+                            postStatus(id, "reblog", "ブーストしました。")
+                        })
+                    .setNeutralButton(
+                        "キャンセル",
+                        DialogInterface.OnClickListener { dialogInterface, i ->
+                        })
+                    .show()
+            }
+        }
     }
 
     fun refreshTL() {
@@ -109,7 +135,7 @@ class TimeLineFragment : Fragment() {
 
                         //配列に入れる
                         val list = arrayListOf<String>()
-                        list.add("")
+                        list.add("timeline")
                         list.add(toot)
                         list.add(usernme)
                         list.add(displayName)
@@ -149,17 +175,21 @@ class TimeLineFragment : Fragment() {
                     val jsonArray = JSONArray(response.body?.string())
                     for (i in 0 until jsonArray.length()) {
                         val jsonObject = jsonArray.getJSONObject(i);
-                        val tootJsonObject = jsonObject.getJSONObject("status");
+                        var toot = ""
+                        var tootID = ""
+                        if (jsonObject.has("status")) {
+                            val tootJsonObject = jsonObject.getJSONObject("status");
+                            toot = tootJsonObject.getString("content")
+                            tootID = tootJsonObject.getString("id")
+                        }
                         val jsonAccountObject = jsonObject.getJSONObject("account");
-                        val toot = tootJsonObject.getString("content")
                         val usernme = jsonAccountObject.getString("username")
                         val displayName = jsonAccountObject.getString("display_name")
-                        val tootID = tootJsonObject.getString("id")
                         val avatar = jsonAccountObject.getString("avatar_static")
                         val type = jsonObject.getString("type")
                         //配列に入れる
                         val list = arrayListOf<String>()
-                        list.add("")
+                        list.add("notification")
                         list.add(toot)
                         list.add(usernme)
                         list.add(displayName)
@@ -273,9 +303,45 @@ class TimeLineFragment : Fragment() {
         list.add("")
         val listItem = ListItem(list)
         activity?.runOnUiThread {
-            listAdapter.addFirst(listItem)
+            listAdapter.clear()
+            val tmpList = arrayList
+            for (item in tmpList) {
+                listAdapter.add(item)
+            }
             listAdapter.notifyDataSetChanged()
         }
+    }
+
+    /**
+     * @oaram type favourite/reblog
+     * */
+    fun postStatus(id: String, type: String, successText: String) {
+        //投稿する
+        val url = "https://${instance}/api/v1/statuses/${id}/${type}"
+        val formBody = FormBody.Builder().add("access_token", token).build()
+        val request = Request.Builder().url(url).post(formBody).build()
+        val okHttpClient = OkHttpClient()
+        okHttpClient.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                //失敗
+                activity?.runOnUiThread {
+                    Toast.makeText(context, "問題が発生しました。", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    //成功した
+                    activity?.runOnUiThread {
+                        Toast.makeText(context, successText, Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    activity?.runOnUiThread {
+                        Toast.makeText(context, "問題が発生しました。", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        })
     }
 
 
