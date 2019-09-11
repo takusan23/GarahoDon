@@ -1,6 +1,7 @@
 package io.github.takusan23.garahodon;
 
 import androidx.appcompat.app.AlertDialog;
+
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -71,13 +72,13 @@ public class ListAdapter extends ArrayAdapter<ListItem> {
 
         //値設定
         accountTextView.setText(displayName + "@" + name + "  " + type);
-        contentTextView.setText(HtmlCompat.fromHtml(toot, HtmlCompat.FROM_HTML_MODE_COMPACT));
+        contentTextView.setText(noTrailingwhiteLines(HtmlCompat.fromHtml(toot, HtmlCompat.FROM_HTML_MODE_COMPACT)));
 
         //アイコン
         //画像非表示？
         if (pref_setting.getBoolean("hide_image", false)) {
             //非表示
-            ((LinearLayout)avatarImageView.getParent()).removeView(avatarImageView);
+            avatarImageView.setVisibility(View.GONE);
         } else {
             //表示
             Glide.with(avatarImageView)
@@ -89,13 +90,18 @@ public class ListAdapter extends ArrayAdapter<ListItem> {
         return view;
     }
 
-    public void addFirst(ListItem item) {
-        ArrayList<ListItem> tmpItem = new ArrayList<ListItem>();
-        tmpItem.add(item);
-        for (int i = 0; i < mItems.size(); i++) {
-            add(mItems.get(i));
+    /*
+     * Html.fromHtmlで余計な改行を消せる
+     * https://stackoverflow.com/questions/16585557/extra-padding-on-textview-with-html-contents/25058538
+     * */
+    private CharSequence noTrailingwhiteLines(CharSequence text) {
+        if (1 < text.length()) {
+            while (text.charAt(text.length() - 1) == '\n') {
+                text = text.subSequence(0, text.length() - 1);
+            }
         }
-        notifyDataSetChanged();
+        return text;
     }
+
 
 }

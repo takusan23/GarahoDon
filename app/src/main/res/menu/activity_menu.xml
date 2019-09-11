@@ -8,9 +8,8 @@
         app:showAsAction="ifRoom" />
     <item
         android:id="@+id/mainactivity_menu_streaming"
-        android:icon="@drawable/ic_flash_on"
+        android:icon="@drawable/ic_flash_off"
         android:title="ストリーミング"
-        android:visible="false"
         app:showAsAction="ifRoom" />
     <item
         android:id="@+id/mainactivity_menu_refresh"

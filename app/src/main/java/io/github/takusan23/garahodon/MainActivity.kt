@@ -3,6 +3,7 @@ package io.github.takusan23.garahodon
 import android.content.DialogInterface
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.drawable.Drawable
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -31,6 +32,8 @@ class MainActivity : AppCompatActivity() {
     var fragmentTimeLineName = "home"
 
     lateinit var timelineListViewAdapter: TimeLineFragmentPagerAdapter
+
+    lateinit var menu: Menu
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,6 +67,10 @@ class MainActivity : AppCompatActivity() {
 
         menu?.getItem(3)?.isChecked = pref_setting.getBoolean("hide_image", false)
 
+        if (menu != null) {
+            this.menu = menu
+        }
+
         return super.onCreateOptionsMenu(menu);
     }
 
@@ -74,14 +81,19 @@ class MainActivity : AppCompatActivity() {
                 showTootDialog()
             }
             R.id.mainactivity_menu_streaming -> {
-                println("あ")
                 val fragment =
                     supportFragmentManager.findFragmentByTag("android:switcher:" + mainactivity_viewpager.id + ":" + mainactivity_viewpager.currentItem)
                 if (fragment is TimeLineFragment) {
-                    println("きた")
-                    fragment.setStreaming(fragmentTimeLineName)
-                } else {
-                    println("しっぱい")
+                    //接続・切断
+                    if (fragment.isConnectionStreaming()) {
+                        fragment.closeStreaming()
+                        //アイコン変更
+                        item.icon = getDrawable(R.drawable.ic_flash_off)
+                    } else {
+                        fragment.setStreaming(fragmentTimeLineName)
+                        //アイコン変更
+                        item.icon = getDrawable(R.drawable.ic_flash_on)
+                    }
                 }
             }
             R.id.mainactivity_menu_refresh -> {
@@ -154,6 +166,10 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
+    }
+
+    fun setStreamingMenuIcon(drawable: Drawable?) {
+        menu.getItem(1).icon = drawable
     }
 
 }

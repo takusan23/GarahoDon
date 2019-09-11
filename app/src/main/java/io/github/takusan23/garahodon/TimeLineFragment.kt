@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AbsListView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.preference.PreferenceManager
@@ -15,11 +16,13 @@ import okhttp3.*
 import org.json.JSONArray
 import java.io.IOException
 import android.widget.ArrayAdapter
+import androidx.appcompat.app.AppCompatActivity
 import org.java_websocket.client.WebSocketClient
 import org.java_websocket.handshake.ServerHandshake
 import org.json.JSONObject
 import java.lang.Exception
 import java.net.URI
+import kotlin.math.max
 
 
 class TimeLineFragment : Fragment() {
@@ -30,6 +33,9 @@ class TimeLineFragment : Fragment() {
     lateinit var pref_setting: SharedPreferences
     var token = "";
     var instance = "";
+
+    var maxId = ""
+    var isNextTimeLineLoad = false
 
     val arrayList = arrayListOf<ListItem>()
     lateinit var listAdapter: ListAdapter
@@ -76,7 +82,7 @@ class TimeLineFragment : Fragment() {
             val list = adapterView.getItemAtPosition(i) as ListItem
             val id = list.list.get(4)
             val type = list.list.get(0)
-            if(type=="timeline") {
+            if (type == "timeline") {
                 //通知は押せないように
                 AlertDialog.Builder(context as MainActivity).setTitle("Fav/BT")
                     .setPositiveButton(
@@ -96,6 +102,30 @@ class TimeLineFragment : Fragment() {
                     .show()
             }
         }
+
+        //追加読み込みに対応させる
+        getNextTimeline()
+    }
+
+    fun getNextTimeline() {
+        fragment_listview.setOnScrollListener(object : AbsListView.OnScrollListener {
+            override fun onScrollStateChanged(p0: AbsListView?, p1: Int) {
+
+            }
+
+            override fun onScroll(p0: AbsListView?, p1: Int, p2: Int, p3: Int) {
+                if (p1 + p2 == p3 && !isNextTimeLineLoad) {
+                    val url = arguments?.getString("url") ?: "home"
+                    //通知と分ける
+                    if (!url.contains("notification")) {
+                        loadTimeLine(url, maxId)
+                    } else {
+                        loadNotification(maxId)
+                    }
+                    isNextTimeLineLoad = true
+                }
+            }
+        })
     }
 
     fun refreshTL() {
@@ -104,15 +134,21 @@ class TimeLineFragment : Fragment() {
         val url = arguments?.getString("url") ?: "home"
         //通知と分ける
         if (!url.contains("notification")) {
-            loadTimeLine(url)
+            loadTimeLine(url, null)
         } else {
-            loadNotification()
+            loadNotification(null)
         }
     }
 
-    fun loadTimeLine(url: String) {
-        val url =
-            "https://${instance}/api/v1/timelines/${url}&access_token=${token}"
+    /**
+     * @param maxid 追加読み込み時に利用してね。使わないときはnullでいいよ
+     * */
+    fun loadTimeLine(url: String, maxid: String?) {
+        var url =
+            "https://${instance}/api/v1/timelines/${url}&access_token=${token}&limit=40"
+        if (maxid != null) {
+            url += "&max_id=${maxid}"
+        }
         fragment_swipe.isRefreshing = true
         val request = Request.Builder().url(url).get().build()
         val okHttpClient = OkHttpClient()
@@ -144,13 +180,22 @@ class TimeLineFragment : Fragment() {
                         list.add("")
                         val listItem = ListItem(list)
                         activity?.runOnUiThread {
-                            listAdapter.add(listItem)
+                            if (maxid != null) {
+                                listAdapter.insert(listItem, listAdapter.count)
+                            } else {
+                                listAdapter.add(listItem)
+                            }
                         }
                     }
+                    //追加読み込み用にID控える
+                    maxId = jsonArray.getJSONObject(jsonArray.length() - 1).getString("id")
+                    if (maxid != null) {
+                        isNextTimeLineLoad = false
+                    }
+                    //ListView更新
                     activity?.runOnUiThread {
-                        //ListView更新
-                        fragment_swipe.isRefreshing = false
-                        fragment_listview.adapter = listAdapter
+                        fragment_swipe?.isRefreshing = false
+                        fragment_listview?.adapter = listAdapter
                     }
                 } else {
                     errorToast()
@@ -159,9 +204,12 @@ class TimeLineFragment : Fragment() {
         })
     }
 
-    fun loadNotification() {
-        val url =
+    fun loadNotification(max_id: String?) {
+        var url =
             "https://${instance}/api/v1/notifications?limit=40&access_token=${token}"
+        if (max_id != null) {
+            url += "&max_id=${max_id}"
+        }
         fragment_swipe.isRefreshing = true
         val request = Request.Builder().url(url).get().build()
         val okHttpClient = OkHttpClient()
@@ -201,10 +249,16 @@ class TimeLineFragment : Fragment() {
                             listAdapter.add(listItem)
                         }
                     }
+                    //追加読み込み用にID控える
+                    maxId = jsonArray.getJSONObject(jsonArray.length() - 1).getString("id")
+                    if (max_id != null) {
+                        isNextTimeLineLoad = false
+                    }
                     activity?.runOnUiThread {
                         fragment_swipe.isRefreshing = false
                         fragment_listview.adapter = listAdapter
                     }
+
                 } else {
                     errorToast()
                 }
@@ -219,10 +273,33 @@ class TimeLineFragment : Fragment() {
         }
     }
 
+    fun closeStreaming() {
+        //Streaming接続を切断する
+        if (this@TimeLineFragment::webSocketClient.isInitialized) {
+            //初期化済みかチェック
+            if (!webSocketClient.isClosed) {
+                webSocketClient.close()
+                activity?.runOnUiThread {
+                    Toast.makeText(context, "ストリーミングを切断しました", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    fun isConnectionStreaming(): Boolean {
+        if (this@TimeLineFragment::webSocketClient.isInitialized) {
+            //初期化済みかチェック
+            if (!webSocketClient.isClosed) {
+                return true
+            }
+        }
+        return false
+    }
+
     fun setStreaming(url: String) {
         //TL読み込み
         var isNotification = false
-        var webSocketLink = "wss://${instance}/api/v1/streaming/&stream=user"
+        var webSocketLink = "wss://${instance}/api/v1/streaming/?stream=public:local"
         if (url.contains("home")) {
             var webSocketLink =
                 "wss://${instance}/api/v1/streaming/?stream=user&access_token=${token}"
@@ -240,7 +317,7 @@ class TimeLineFragment : Fragment() {
             var webSocketLink =
                 "wss://${instance}/api/v1/streaming/?stream=public"
         }
-        val uri = URI("wss://best-friends.chat/api/v1/streaming/?stream=public")
+        val uri = URI(webSocketLink)
         webSocketClient = object : WebSocketClient(uri) {
             override fun onOpen(handshakedata: ServerHandshake?) {
                 activity?.runOnUiThread {
@@ -250,7 +327,7 @@ class TimeLineFragment : Fragment() {
             }
 
             override fun onClose(code: Int, reason: String?, remote: Boolean) {
-                println("しゅうりょう " + reason)
+                println("しゅうりょう $reason")
             }
 
             override fun onMessage(message: String?) {
@@ -266,6 +343,11 @@ class TimeLineFragment : Fragment() {
                         //これでストリーミング有効・無効でもJSONパースになるので楽になる（？）
                         timelineJSONParse(toot_jsonObject, true)
                     }
+                } else {
+                    val jsonObject = JSONObject(message)
+                    val payload = jsonObject.getString("payload")
+                    val toot_text_jsonObject = JSONObject(payload)
+                    notificationJSONPase(toot_text_jsonObject, true)
                 }
             }
 
@@ -278,10 +360,45 @@ class TimeLineFragment : Fragment() {
 
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        webSocketClient.close()
+    private fun notificationJSONPase(toot_text_jsonObject: JSONObject, b: Boolean) {
+        val jsonObject = toot_text_jsonObject
+        var toot = ""
+        var tootID = ""
+        if (jsonObject.has("status")) {
+            val tootJsonObject = jsonObject.getJSONObject("status");
+            toot = tootJsonObject.getString("content")
+            tootID = tootJsonObject.getString("id")
+        }
+        val jsonAccountObject = jsonObject.getJSONObject("account");
+        val usernme = jsonAccountObject.getString("username")
+        val displayName = jsonAccountObject.getString("display_name")
+        val avatar = jsonAccountObject.getString("avatar_static")
+        val type = jsonObject.getString("type")
+        //配列に入れる
+        val list = arrayListOf<String>()
+        list.add("notification")
+        list.add(toot)
+        list.add(usernme)
+        list.add(displayName)
+        list.add(tootID)
+        list.add(avatar)
+        list.add(type)
+        val listItem = ListItem(list)
+        activity?.runOnUiThread {
+            listAdapter.insert(listItem, 0)
+            listAdapter.notifyDataSetChanged()
+        }
     }
+
+    override fun onPause() {
+        super.onPause()
+        if (this@TimeLineFragment::webSocketClient.isInitialized) {
+            //初期化済みならWebSocket閉じる
+            webSocketClient.close()
+            (activity as MainActivity).setStreamingMenuIcon(context?.getDrawable(R.drawable.ic_flash_off))
+        }
+    }
+
 
     private fun timelineJSONParse(tootJsonobject: JSONObject, b: Boolean) {
         val jsonObject = tootJsonobject
@@ -294,7 +411,7 @@ class TimeLineFragment : Fragment() {
 
         //配列に入れる
         val list = arrayListOf<String>()
-        list.add("")
+        list.add("timeline")
         list.add(toot)
         list.add(usernme)
         list.add(displayName)
@@ -303,11 +420,7 @@ class TimeLineFragment : Fragment() {
         list.add("")
         val listItem = ListItem(list)
         activity?.runOnUiThread {
-            listAdapter.clear()
-            val tmpList = arrayList
-            for (item in tmpList) {
-                listAdapter.add(item)
-            }
+            listAdapter.insert(listItem, 0)
             listAdapter.notifyDataSetChanged()
         }
     }
