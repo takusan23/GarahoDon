@@ -4,6 +4,7 @@ import androidx.appcompat.app.AlertDialog
 import android.content.DialogInterface
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -21,7 +22,11 @@ import org.java_websocket.client.WebSocketClient
 import org.java_websocket.handshake.ServerHandshake
 import org.json.JSONObject
 import java.lang.Exception
+import java.lang.Math.random
 import java.net.URI
+import java.util.*
+import kotlin.collections.ArrayList
+import kotlin.concurrent.schedule
 import kotlin.math.max
 
 
@@ -76,6 +81,11 @@ class TimeLineFragment : Fragment() {
         }
 
 
+        //テンキー操作できるようにする
+        setGrahoTenkeyControll()
+
+
+
         //Activityに今開いてるTL入れとく
         val mainActivity = context as MainActivity
         val url = arguments?.getString("url") ?: "home"
@@ -89,7 +99,7 @@ class TimeLineFragment : Fragment() {
             if (listItem[0].contains("notification")) {
                 notification = true
             }
-            val parser = MastodonTimelineAPIParser(jsonString,notification)
+            val parser = MastodonTimelineAPIParser(jsonString, notification)
             val id = parser.tootID
             val type = list.list.get(0)
             if (type == "timeline") {
@@ -127,7 +137,7 @@ class TimeLineFragment : Fragment() {
                 if (p1 + p2 == p3 && !isNextTimeLineLoad) {
                     //ListViewの位置を保存
                     listViewPos = fragment_listview.firstVisiblePosition
-                    listViewPosY = fragment_listview.getChildAt(0).top
+                    listViewPosY = fragment_listview.getChildAt(0)?.top ?: 0
                     //TL追加読み込み
                     val url = arguments?.getString("url") ?: "home"
                     //通知と分ける
@@ -394,7 +404,7 @@ class TimeLineFragment : Fragment() {
         val usernme = jsonAccountObject.getString("username")
         val displayName = jsonAccountObject.getString("display_name")
         val avatar = jsonAccountObject.getString("avatar_static")
-        val type = jsonObject.getString("type")
+        //val type = jsonObject.getString("type")
         //配列に入れる
         val list = arrayListOf<String>()
         list.add("notification")
@@ -403,7 +413,7 @@ class TimeLineFragment : Fragment() {
         list.add(displayName)
         list.add(tootID)
         list.add(avatar)
-        list.add(type)
+        list.add("")
         val listItem = ListItem(list)
         activity?.runOnUiThread {
             listAdapter.insert(listItem, 0)
@@ -478,5 +488,69 @@ class TimeLineFragment : Fragment() {
         })
     }
 
-
+    /**
+     * テンキー操作でお気に入り、更新、投稿ができるように
+     *
+     * */
+    fun setGrahoTenkeyControll() {
+        fragment_listview.setOnKeyListener { view, i, keyEvent ->
+            //2回呼ばれるんで
+            if (keyEvent.action != KeyEvent.ACTION_DOWN) {
+                false
+            } else {
+                //ListViewのアイテム取得
+                val list = listAdapter.getItem(fragment_listview.selectedItemPosition)
+                val json = list?.list?.get(1)
+                if (json != null) {
+                    val parser = MastodonTimelineAPIParser(json, false)
+                    val id = parser.tootID
+                    //それぞれ
+                    when (keyEvent.keyCode) {
+                        5 -> {
+                            //発信キー
+                            //投稿
+                            (activity as MainActivity).showTootDialog()
+                        }
+                        8 -> {
+                            //①
+                            //更新
+                            refreshTL()
+                        }
+                        9 -> {
+                            //②
+                            //お気に入り
+                            postStatus(id, "favourite", "お気に入り登録しました。")
+                        }
+                        10 -> {
+                            //③
+                            //ブースト
+                            postStatus(id, "reblog", "ブーストしました。")
+                        }
+                        7 -> {
+                            //０キー
+                            //ストリーミング接続・切断
+                            if (isConnectionStreaming()) {
+                                closeStreaming()
+                                //アイコン変更
+                                (activity as MainActivity).setStreamingMenuIcon(
+                                    context?.getDrawable(
+                                        R.drawable.ic_flash_off
+                                    )
+                                )
+                            } else {
+                                setStreaming((activity as MainActivity).fragmentTimeLineName)
+                                //アイコン変更
+                                (activity as MainActivity).setStreamingMenuIcon(
+                                    context?.getDrawable(
+                                        R.drawable.ic_flash_on
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            false
+        }
+    }
 }

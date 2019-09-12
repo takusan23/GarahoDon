@@ -21,7 +21,9 @@ class MastodonTimelineAPIParser(jsonString: String, notification: Boolean) {
         if (!notification) {
             //タイムラインのJSONパース
             val jsonAccountObject = jsonObject.getJSONObject("account")
-            tootContent = jsonObject.getString("content")
+            if (jsonObject.has("content")){
+                tootContent = jsonObject.getString("content")
+            }
             userName = jsonAccountObject.getString("username")
             displayName = jsonAccountObject.getString("display_name")
             tootID = jsonObject.getString("id")

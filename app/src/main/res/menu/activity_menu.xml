@@ -24,4 +24,11 @@
         android:icon="@drawable/ic_photo"
         android:title="画像非表示" />
 
+    <item
+        android:id="@+id/mainactivity_menu_hide_guide"
+        android:checkable="true"
+        android:checked="false"
+        android:icon="@drawable/ic_keybord"
+        android:title="テンキー操作ガイド非表示" />
+
 </menu>

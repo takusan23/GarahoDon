@@ -9,15 +9,21 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View.GONE
+import android.view.View.VISIBLE
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.view.menu.MenuBuilder
 import androidx.preference.PreferenceManager
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.dialog_toot_layout.view.*
+import kotlinx.android.synthetic.main.fragment_timeline_layout.*
 import okhttp3.*
 import org.json.JSONArray
 import java.io.IOException
+import java.util.*
+import kotlin.collections.ArrayList
+import kotlin.concurrent.schedule
 
 class MainActivity : AppCompatActivity() {
 
@@ -34,6 +40,11 @@ class MainActivity : AppCompatActivity() {
     lateinit var timelineListViewAdapter: TimeLineFragmentPagerAdapter
 
     lateinit var menu: Menu
+
+    //テンキー操作ガイド
+    val keyGuideList = arrayListOf("発信キー：投稿", "１：更新", "２：お気に入り", "３：ブースト", "０：ストリーミング接続・切断")
+    val timer = Timer()
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,9 +65,21 @@ class MainActivity : AppCompatActivity() {
             mainactivity_viewpager.adapter = timelineListViewAdapter
             //TabLayoutとつなげる
             mainactivity_tablayout.setupWithViewPager(mainactivity_viewpager)
+
+            //テンキー操作ガイドを定期的に切り替える
+            var count = 0
+            timer.schedule(0, 5000) {
+                runOnUiThread {
+                    timeline_listview_key_controll_guide?.text =
+                        keyGuideList[count]
+                    count += 1
+                    //一周したら戻す
+                    if (count == keyGuideList.size) {
+                        count = 0
+                    }
+                }
+            }
         }
-
-
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -117,6 +140,14 @@ class MainActivity : AppCompatActivity() {
                     editor.apply()
                 }
             }
+            R.id.mainactivity_menu_hide_guide -> {
+                //テンキー操作ガイド消す
+                if (timeline_listview_key_controll_guide.visibility == GONE) {
+                    timeline_listview_key_controll_guide.visibility = VISIBLE
+                } else {
+                    timeline_listview_key_controll_guide.visibility = GONE
+                }
+            }
         }
         return super.onOptionsItemSelected(item)
     }
@@ -172,4 +203,8 @@ class MainActivity : AppCompatActivity() {
         menu.getItem(1).icon = drawable
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        timer.cancel()
+    }
 }

@@ -39,9 +39,17 @@
     <androidx.viewpager.widget.ViewPager
         android:id="@+id/mainactivity_viewpager"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:layout_weight="1">
 
     </androidx.viewpager.widget.ViewPager>
+
+    <TextView
+        android:id="@+id/timeline_listview_key_controll_guide"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="テンキー操作のガイドだよ" />
+
 
 
     <!--    <ListView
