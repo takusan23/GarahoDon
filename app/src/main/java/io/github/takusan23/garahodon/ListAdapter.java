@@ -53,12 +53,18 @@ public class ListAdapter extends ArrayAdapter<ListItem> {
         //データを受け取る
         ListItem item = mItems.get(position);
         listItem = item.getList();
-        String toot = listItem.get(1);
-        String name = listItem.get(2);
-        String displayName = listItem.get(3);
-        String id = listItem.get(4);
-        String avatar = listItem.get(5);
-        String type = listItem.get(6);
+        boolean notification = false;
+        if (listItem.get(0).contains("notification")) {
+            notification = true;
+        }
+        String jsonString = listItem.get(1);
+        MastodonTimelineAPIParser parser = new MastodonTimelineAPIParser(jsonString, notification);
+        String toot = parser.getTootContent();
+        String displayName = parser.getDisplayName();
+        String userName = parser.getUserName();
+        String id = parser.getTootID();
+        String avatar = parser.getAvatar();
+        String type = parser.getNotificationType();
 
         //findViewById
         TextView accountTextView = view.findViewById(R.id.adapter_listview_account_textview);
@@ -71,7 +77,7 @@ public class ListAdapter extends ArrayAdapter<ListItem> {
 
 
         //値設定
-        accountTextView.setText(displayName + "@" + name + "  " + type);
+        accountTextView.setText(displayName + "@" + userName + "  " + type);
         contentTextView.setText(noTrailingwhiteLines(HtmlCompat.fromHtml(toot, HtmlCompat.FROM_HTML_MODE_COMPACT)));
 
         //アイコン

@@ -42,6 +42,10 @@ class TimeLineFragment : Fragment() {
 
     lateinit var webSocketClient: WebSocketClient
 
+    //ListViewの位置保存して更新してもそのままでいられるようにする
+    var listViewPos = 0
+    var listViewPosY = 0
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -80,7 +84,13 @@ class TimeLineFragment : Fragment() {
         //ListView押したときふぁぼれるようにする
         fragment_listview.setOnItemClickListener { adapterView, view, i, l ->
             val list = adapterView.getItemAtPosition(i) as ListItem
-            val id = list.list.get(4)
+            val jsonString = list.list.get(1)
+            var notification = false
+            if (listItem[0].contains("notification")) {
+                notification = true
+            }
+            val parser = MastodonTimelineAPIParser(jsonString,notification)
+            val id = parser.tootID
             val type = list.list.get(0)
             if (type == "timeline") {
                 //通知は押せないように
@@ -115,6 +125,10 @@ class TimeLineFragment : Fragment() {
 
             override fun onScroll(p0: AbsListView?, p1: Int, p2: Int, p3: Int) {
                 if (p1 + p2 == p3 && !isNextTimeLineLoad) {
+                    //ListViewの位置を保存
+                    listViewPos = fragment_listview.firstVisiblePosition
+                    listViewPosY = fragment_listview.getChildAt(0).top
+                    //TL追加読み込み
                     val url = arguments?.getString("url") ?: "home"
                     //通知と分ける
                     if (!url.contains("notification")) {
@@ -172,7 +186,7 @@ class TimeLineFragment : Fragment() {
                         //配列に入れる
                         val list = arrayListOf<String>()
                         list.add("timeline")
-                        list.add(toot)
+                        list.add(jsonArray.getJSONObject(i).toString())
                         list.add(usernme)
                         list.add(displayName)
                         list.add(tootID)
@@ -196,6 +210,10 @@ class TimeLineFragment : Fragment() {
                     activity?.runOnUiThread {
                         fragment_swipe?.isRefreshing = false
                         fragment_listview?.adapter = listAdapter
+                        //追加読み込み時だけListViewの位置を設定する
+                        if (maxid != null) {
+                            fragment_listview.setSelectionFromTop(listViewPos, listViewPosY)
+                        }
                     }
                 } else {
                     errorToast()
@@ -238,7 +256,7 @@ class TimeLineFragment : Fragment() {
                         //配列に入れる
                         val list = arrayListOf<String>()
                         list.add("notification")
-                        list.add(toot)
+                        list.add(jsonArray.getJSONObject(i).toString())
                         list.add(usernme)
                         list.add(displayName)
                         list.add(tootID)
@@ -257,8 +275,11 @@ class TimeLineFragment : Fragment() {
                     activity?.runOnUiThread {
                         fragment_swipe.isRefreshing = false
                         fragment_listview.adapter = listAdapter
+                        //追加読み込み時だけListViewの位置を設定する
+                        if (max_id != null) {
+                            fragment_listview.setSelectionFromTop(listViewPos, listViewPosY)
+                        }
                     }
-
                 } else {
                     errorToast()
                 }
@@ -377,7 +398,7 @@ class TimeLineFragment : Fragment() {
         //配列に入れる
         val list = arrayListOf<String>()
         list.add("notification")
-        list.add(toot)
+        list.add(toot_text_jsonObject.toString())
         list.add(usernme)
         list.add(displayName)
         list.add(tootID)
@@ -412,7 +433,7 @@ class TimeLineFragment : Fragment() {
         //配列に入れる
         val list = arrayListOf<String>()
         list.add("timeline")
-        list.add(toot)
+        list.add(tootJsonobject.toString())
         list.add(usernme)
         list.add(displayName)
         list.add(tootID)
